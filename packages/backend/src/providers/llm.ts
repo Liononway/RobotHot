@@ -129,14 +129,14 @@ function requestFor<S extends z.ZodType>(opts: ChatJsonOptions<S>, spec: ModelSp
 }
 
 /** A call without a backup waits this long for its answer. */
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = 180_000;
 /**
  * A call with an evaluated backup gives up sooner: the backup takes over at once, and the primary's
- * receipt stays unknown (it may be billed as well). On the steps that have a backup, 6 of about 14,000
- * answers took longer than this (99.9% came within it, the slowest in 77 s), while in an outage every
- * call held its work for the full wait before failing.
+ * receipt stays unknown (it may be billed as well). This deployment answers with a reasoning model,
+ * whose structured JSON answers regularly need over a minute, so the wait is longer than the
+ * upstream default of 30 s.
  */
-const FAILOVER_TIMEOUT_MS = 30_000;
+const FAILOVER_TIMEOUT_MS = 90_000;
 
 /**
  * With a backup (fallbackModel: editorial/models.ts picks one at another provider), a primary whose

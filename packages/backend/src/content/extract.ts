@@ -7,7 +7,7 @@ import { guardedFetch, languageHeaders } from "../lib/http-fetch.ts";
 import { assertPageContent, contentDocument, UnavailablePageError } from "../lib/page-content.ts";
 import { stripTags } from "../lib/text.ts";
 import { isVideoPageUrl } from "../lib/video-url.ts";
-import { jinaRead } from "../providers/jina.ts";
+import { jinaConfigured, jinaRead } from "../providers/jina.ts";
 import { BudgetExceededError } from "../providers/receipts.ts";
 import { getArticle } from "../providers/socialdata.ts";
 import { articleUtcOffset, readPublicationDate, type PublicationDate } from "../sources/dates.ts";
@@ -119,6 +119,21 @@ export const pageRules = (config: SourceRow["config"]): PageRules =>
 
 type Doc = ReturnType<typeof parseHTML>["document"];
 type El = NonNullable<ReturnType<Doc["querySelector"]>>;
+
+/**
+ * WeChat official-account pages ship the article hidden (visibility:hidden; opacity:0) until their own
+ * script reveals it, and no script runs here. The body container is shown instead, so the page reads
+ * like any other article; the wrapper's styles are dropped, its content untouched.
+ */
+function revealWechatArticle(document: Doc, url: string) {
+  let host = "";
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return; }
+  if (host !== "mp.weixin.qq.com") return;
+  for (const el of document.querySelectorAll("#js_content, #js_image_content")) {
+    if (shownText(el).length < MIN_BODY_CHARS) continue;
+    el.removeAttribute("style");
+  }
+}
 
 /** Text of an element as a reader sees it: without scripts, styles and parts hidden from assistive technology. */
 function shownText(el: El): string {
@@ -358,6 +373,7 @@ export function readableDocument(document: Doc, url: string, rules: PageRules = 
     // no head
   }
   settleStreamedContent(document);
+  revealWechatArticle(document, url);
   settleInlineVisibility(document);
   preserveWidgets(document, rules.preserve ?? []);
   describeFigureDrawings(document);
@@ -394,7 +410,7 @@ export async function extractFromUrl(url: string, subject: string, rules: PageRu
   } catch {
     // fall through to Jina
   }
-  if (opts.paidFallback === false) return null;
+  if (opts.paidFallback === false || !jinaConfigured()) return null;
   try {
     const page = await jinaRead(url, { purpose: "body_fallback", subject });
     const html = markdownBody(page.markdown, url);
@@ -407,12 +423,16 @@ export async function extractFromUrl(url: string, subject: string, rules: PageRu
   }
 }
 
-/** Ordinary article pages; player pages have no article body, and social posts arrive separately. */
+/**
+ * Ordinary article pages; player pages have no article body, and social posts arrive separately.
+ * WeChat official-account articles are ordinary pages here: a feed read through a private RSS
+ * (kind rss) carries only the title and link, so the body is read from the page itself.
+ */
 export function pageFetchable(url: string, sourceKind: string): boolean {
   if (sourceKind === "x_search" || sourceKind === "mp_account" || isVideoPageUrl(url)) return false;
   try {
     const u = new URL(url);
-    return /^https?:$/.test(u.protocol) && !/(^|\.)(x\.com|twitter\.com|mp\.weixin\.qq\.com)$/i.test(u.hostname);
+    return /^https?:$/.test(u.protocol) && !/(^|\.)(x\.com|twitter\.com)$/i.test(u.hostname);
   } catch {
     return false;
   }

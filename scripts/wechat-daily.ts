@@ -16,6 +16,8 @@
 //   SITE_PUBLIC_URL        拼文章链接用的对外地址（手机能打开的域名；默认取 SITE_URL）
 
 const PROVIDER = (process.env.WECHAT_PUSH_PROVIDER || "serverchan").trim().toLowerCase();
+/** pushplus 的发送渠道：留空走默认公众号；填 clawbot 则落到微信 ClawBot 对话里。 */
+const CHANNEL = (process.env.WECHAT_PUSH_CHANNEL || "").trim().toLowerCase();
 const TOKEN = (process.env.WECHAT_PUSH_TOKEN || "").trim();
 const AT = (process.env.WECHAT_DAILY_AT || "10:30").trim();
 const TOP = Math.max(1, Math.min(20, Number(process.env.WECHAT_DAILY_TOP) || 10));
@@ -105,17 +107,40 @@ function renderMarkdown(items: Item[]): string {
   return lines.join("\n").trim();
 }
 
-async function push(title: string, markdown: string): Promise<void> {
+/** ClawBot 的 txt 模板只认纯文本（富文本模板只展示前 50 字），所以再备一版纯文本排版。 */
+function renderPlain(items: Item[]): string {
+  const lines: string[] = [];
+  items.forEach((it, i) => {
+    lines.push(`${i + 1}. ${oneLine(it.title, 80)}`);
+    const brief = oneLine(it.summary || it.reason, 110);
+    if (brief) lines.push(`   ${brief}`);
+    const meta = [it.source?.name, it.category ? `#${it.category}` : ""].filter(Boolean).join(" · ");
+    if (meta) lines.push(`   ${meta}`);
+    lines.push(`   ${SITE}/items/${it.id}`);
+    lines.push("");
+  });
+  return lines.join("\n").trim();
+}
+
+async function push(title: string, markdown: string, plain: string): Promise<void> {
   if (!TOKEN) {
     log("未配置 WECHAT_PUSH_TOKEN，只打印不发送");
-    console.log(`\n=== ${title} ===\n${markdown}`);
+    console.log(`\n=== ${title} ===\n${CHANNEL === "clawbot" ? plain : markdown}`);
     return;
   }
   let url: string;
   let body: unknown;
   if (PROVIDER === "pushplus") {
     url = "https://www.pushplus.plus/send";
-    body = { token: TOKEN, title, content: markdown, template: "markdown" };
+    const useTxt = CHANNEL === "clawbot";
+    body = {
+      token: TOKEN,
+      title,
+      // ClawBot 官方对富文本只显示前 50 字，官方文档建议用 txt 模板发纯文本。
+      content: useTxt ? plain : markdown,
+      template: useTxt ? "txt" : "markdown",
+      ...(CHANNEL ? { channel: CHANNEL } : {}),
+    };
   } else {
     url = `https://sctapi.ftqq.com/${TOKEN}.send`;
     body = { title, desp: markdown };
@@ -138,12 +163,12 @@ async function sendOnce(): Promise<void> {
     return;
   }
   const title = `RobotHot 精选 · ${beijingDateText()}（${items.length} 条）`;
-  await push(title, renderMarkdown(items));
+  await push(title, renderMarkdown(items), renderPlain(items));
   log(`已推送 ${items.length} 条`);
 }
 
 async function main(): Promise<void> {
-  log(`启动：provider=${PROVIDER} token=${TOKEN ? "已配置" : "未配置"} 每天 ${AT}（北京时间）`);
+  log(`启动：provider=${PROVIDER} channel=${CHANNEL || "默认"} token=${TOKEN ? "已配置" : "未配置"} 每天 ${AT}（北京时间）`);
   if (RUN_ON_START || ONCE) {
     await sendOnce();
     if (ONCE) return;

@@ -90,6 +90,7 @@ services:
     environment:
       <<: *backend-env
       WECHAT_PUSH_PROVIDER: ${WECHAT_PUSH_PROVIDER:-serverchan}
+      WECHAT_PUSH_CHANNEL: ${WECHAT_PUSH_CHANNEL:-}
       WECHAT_PUSH_TOKEN: ${WECHAT_PUSH_TOKEN:-}
       WECHAT_DAILY_AT: ${WECHAT_DAILY_AT:-10:30}
       WECHAT_DAILY_TOP: ${WECHAT_DAILY_TOP:-10}

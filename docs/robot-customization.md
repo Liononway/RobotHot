@@ -163,11 +163,17 @@ docker exec aihot-db-1 psql -U aihot -d postgres -c "drop database restore_test;
 **填进 `.env` 后重启服务**：
 
 ```bash
-WECHAT_PUSH_PROVIDER=serverchan     # 或 pushplus
+WECHAT_PUSH_PROVIDER=pushplus       # serverchan 或 pushplus
+WECHAT_PUSH_CHANNEL=clawbot         # 留空=默认公众号；clawbot=消息落进微信 ClawBot 对话
 WECHAT_PUSH_TOKEN=你的key
 WECHAT_DAILY_AT=10:30               # 北京时间
 WECHAT_DAILY_TOP=10                 # 推几条精选
 ```
+
+**ClawBot 渠道的额外步骤与限制**（微信官方规则，任何接法都一样）：
+绑定入口在 pushplus「个人中心 → 渠道配置 → 微信ClawBot」，扫码后要**主动给 ClawBot 发一条消息**再点
+「我已发送」，状态变「已激活」才能收推送；之后**每发 10 条、每隔 24 小时**都需要再主动说一句话保活。
+txt 模板只认纯文本，脚本在 clawbot 渠道下自动改用纯文本排版（标题/摘要/来源/链接各一行）。
 
 ```bash
 docker compose up -d wechat-daily

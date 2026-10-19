@@ -114,3 +114,37 @@ docker compose down            # 停止（数据保留）
 ```
 
 后台：`http://localhost:3000/admin`，密码是 `.env` 里的 `ADMIN_PASSWORD`（框架强制要求设置，不能为空）。
+
+## 七、备份与恢复
+
+所有内容都在 Docker 卷里，误删容器或卷就没了，所以要备份。脚本：`scripts/backup-local.sh`（手动跑：`bash scripts/backup-local.sh`）。
+
+每次产出三份文件到 `../robot-hot-backups/`（与仓库同级，**不在仓库内**，避免密钥进 git）：
+
+| 文件 | 内容 | 恢复方式 |
+|---|---|---|
+| `aihot-<时间>.sql.gz` | 站点库：文章、信源、事实、报告、回执 | `gunzip -c … \| docker exec -i aihot-db-1 psql -U aihot -d aihot` |
+| `zlzchat-<时间>.sql.gz` | 公众号中转库 `gzhweb`：已添加的号与 feed_id（丢了要重新扫码登录） | `gunzip -c … \| docker exec -i zlz-mysql8 sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'`（dump 自带 `CREATE DATABASE`/`USE`，无需先建库） |
+| `secrets-<时间>.tar.gz` | `.env` + `zlzchat/.secrets`，权限 600 | `tar xzf … -C ..` |
+
+保留最近 14 天（`ROBOTHOT_BACKUP_KEEP_DAYS` 可改），日志在同目录 `backup.log`。
+
+**每天 03:30 自动执行**：`~/Library/LaunchAgents/cn.robothot.backup.plist` 已写好，装一次即可（在当前这台机器上因沙箱限制装不上，需在「终端」里手动执行）：
+
+```bash
+launchctl bootstrap gui/501 ~/Library/LaunchAgents/cn.robothot.backup.plist
+launchctl print gui/501/cn.robothot.backup | head -20   # 看到 state = waiting 即生效
+```
+
+卸载：`launchctl bootout gui/501/cn.robothot.backup`。机器睡眠时错过的时间点，会在唤醒后补跑一次。
+
+**验证备份可用**（建议每月做一次）：把 dump 还原到临时库，数一下表里的行数对不对，再删掉临时库。
+
+```bash
+docker exec aihot-db-1 psql -U aihot -d postgres -c "create database restore_test;"
+gunzip -c ../robot-hot-backups/aihot-*.sql.gz | docker exec -i aihot-db-1 psql -U aihot -d restore_test -q
+docker exec aihot-db-1 psql -U aihot -d restore_test -c "select count(*) from articles;"
+docker exec aihot-db-1 psql -U aihot -d postgres -c "drop database restore_test;"
+```
+
+备份目录本身没有异地副本，要防整机损坏，把 `robot-hot-backups/` 定期拷到移动硬盘或网盘（含密钥，注意加密）。

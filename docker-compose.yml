@@ -17,6 +17,8 @@ x-backend: &backend
     API_BASE_URL: http://api:3001
     # No proxy in front limits pushes to /api/ingest/items: the api does (per client and minute; 0 turns it off).
     INGEST_RATE_LIMIT: ${INGEST_RATE_LIMIT:-10}
+    # 允许列表抓取访问本机自建的 RSS 中转容器（框架专用白名单，见 docs/sources.md）。
+    PRIVATE_FEED_HOSTS: ${PRIVATE_FEED_HOSTS:-rsshub,wewe-rss,zlzchat}
   volumes:
     - data:/data
   depends_on:
@@ -66,6 +68,53 @@ services:
       setup:
         condition: service_completed_successfully
 
+  # 采集 GitHub 近 7 天新建的机器人/智能硬件仓库，按 star 从多到少取前 30 推给站点（周报用）。
+  github-weekly:
+    <<: *backend
+    command: ["node", "scripts/github-weekly.ts"]
+    environment:
+      <<: *backend-env
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_WEEKLY_DAYS: "7"
+      GITHUB_WEEKLY_LIMIT: "30"
+      GITHUB_WEEKLY_INTERVAL_MINUTES: "360"
+    depends_on:
+      api:
+        condition: service_started
+
+  # X（Twitter）转 RSS：用你自己 X 账号的 Cookie 抓取（TWITTER_AUTH_TOKEN / TWITTER_COOKIE 见 .env）。
+  # 通过宿主机上的代理访问 X（RSSHub 容器自己不直连境外网络）。
+  rsshub:
+    image: diygod/rsshub:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: memory
+      ACCESS_KEY: ${RSSHUB_ACCESS_KEY}
+      PROXY_URI: ${HOST_PROXY_URI:-}
+      TWITTER_AUTH_TOKEN: ${TWITTER_AUTH_TOKEN:-}
+      TWITTER_COOKIE: ${TWITTER_COOKIE:-}
+    ports:
+      - "1200:1200"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # 微信公众号转 RSS：已停用（作者中转服务 502）。替代方案是独立部署的 zlzchat
+  # （../zlzchat/docker-compose.yml，端口 10082，同一 Docker 网络）。
+  # wewe-rss:
+  #   image: cooderl/wewe-rss-sqlite:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     AUTH_CODE: ${WEWE_AUTH_CODE}
+  #     DATABASE_TYPE: sqlite
+  #     FEED_MODE: fulltext
+  #     CRON_EXPRESSION: "23 7,19 * * *"
+  #     TZ: Asia/Shanghai
+  #   ports:
+  #     - "4000:4000"
+  #   volumes:
+  #     - wewe-data:/app/data
+
   web:
     <<: *app
     command: ["node", "apps/web/server.ts"]
@@ -103,3 +152,4 @@ volumes:
   db: {}
   data: {}
   caddy: {}
+  wewe-data: {}

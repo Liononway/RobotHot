@@ -358,12 +358,16 @@ async function dailyReportFindings(now: number, open: AlertState): Promise<Findi
   const [activity] = await sql<{ first_report: string | null; first_attempt: Date | null }[]>`
     SELECT (SELECT min(key) FROM reports WHERE kind = 'daily') AS first_report,
            (SELECT min(started_at) FROM job_runs WHERE job = 'reports.compose') AS first_attempt`;
-  const starts = [activity?.first_report, activity?.first_attempt && beijingDate(activity.first_attempt)]
-    .filter((date): date is string => !!date && isValidDate(date)).sort();
-  const start = starts[0] ?? today;
+  // Where the record of expectations begins: the first edition actually published. Only while no
+  // edition exists at all does the first compose attempt stand in, so a fresh install whose very first
+  // run failed is still told about today. Days before launch (the stack can be up a day early, its
+  // imports all marked backfill) are not overdue editions and must not be reported as gaps.
+  const start =
+    (activity?.first_report && isValidDate(activity.first_report) ? activity.first_report : null) ??
+    (activity?.first_attempt ? beijingDate(activity.first_attempt) : today);
   // New gaps and announced editions alike are followed for the scan window; settleDailies closes older ones.
   const from = dailyScanFrom(now);
-  const dates = new Set(Object.keys(open).map(dailyDate).filter((date): date is string => !!date && date >= from));
+  const dates = new Set(Object.keys(open).map(dailyDate).filter((date): date is string => !!date && date >= from && date >= start));
   for (let date = from; date <= today; date = addDays(date, 1)) {
     if (date >= start) dates.add(date);
   }

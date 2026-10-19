@@ -148,3 +148,45 @@ docker exec aihot-db-1 psql -U aihot -d postgres -c "drop database restore_test;
 ```
 
 备份目录本身没有异地副本，要防整机损坏，把 `robot-hot-backups/` 定期拷到移动硬盘或网盘（含密钥，注意加密）。
+
+## 八、每日精选推送到微信（scripts/wechat-daily.ts）
+
+微信个人号没有可用的推送接口，所以走第三方中转：消息发到你在那个服务里扫码登录的微信上。
+
+**选一个通道**（都在微信里扫码登录，30 秒）：
+
+| 通道 | 注册地址 | 拿到什么 | 免费额度 |
+|---|---|---|---|
+| Server酱 | https://sct.ftqq.com | `SENDKEY`（`SCT` 开头） | 每天 5 条 |
+| PushPlus | https://www.pushplus.plus | `token` | 每天 200 条 |
+
+**填进 `.env` 后重启服务**：
+
+```bash
+WECHAT_PUSH_PROVIDER=serverchan     # 或 pushplus
+WECHAT_PUSH_TOKEN=你的key
+WECHAT_DAILY_AT=10:30               # 北京时间
+WECHAT_DAILY_TOP=10                 # 推几条精选
+```
+
+```bash
+docker compose up -d wechat-daily
+docker logs -f aihot-wechat-daily-1        # 看下一次发送时间
+```
+
+**手动试发一次**（不发图片、只发一条，不发就查日志里的报错）：
+
+```bash
+docker compose run --rm --no-deps -e WECHAT_DAILY_ONCE=1 wechat-daily
+```
+
+**逻辑**：读 `/api/site/timeline` 的「精选」流（`selected` 为真的条目，按评分排），取前 N 条，
+渲染成 Markdown（标题 + 一句话摘要 + 来源 + 分类），标题形如「RobotHot 精选 · 10月20日（10 条）」。
+容器常驻，自己算下一个 10:30，不依赖宿主机 cron，也不依赖 Agent。
+
+**注意链接**：正文里的文章链接由 `SITE_PUBLIC_URL` 拼出，默认 `http://localhost:3000`，
+手机上点不开。等站点有了公网域名，把它改成那个域名再重启容器：
+
+```bash
+SITE_PUBLIC_URL=https://你的域名
+```

@@ -82,6 +82,23 @@ services:
       api:
         condition: service_started
 
+  # 每天定时把站点「精选」推到微信（经 Server酱 / PushPlus 中转，见 scripts/wechat-daily.ts）。
+  # 没配 WECHAT_PUSH_TOKEN 时只打日志不发送，不会拖垮其他服务。
+  wechat-daily:
+    <<: *backend
+    command: ["node", "scripts/wechat-daily.ts"]
+    environment:
+      <<: *backend-env
+      WECHAT_PUSH_PROVIDER: ${WECHAT_PUSH_PROVIDER:-serverchan}
+      WECHAT_PUSH_TOKEN: ${WECHAT_PUSH_TOKEN:-}
+      WECHAT_DAILY_AT: ${WECHAT_DAILY_AT:-10:30}
+      WECHAT_DAILY_TOP: ${WECHAT_DAILY_TOP:-10}
+      WECHAT_DAILY_MIN_SCORE: ${WECHAT_DAILY_MIN_SCORE:-0}
+      SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-http://localhost:3000}
+    depends_on:
+      api:
+        condition: service_started
+
   # X（Twitter）转 RSS：用你自己 X 账号的 Cookie 抓取（TWITTER_AUTH_TOKEN / TWITTER_COOKIE 见 .env）。
   # 通过宿主机上的代理访问 X（RSSHub 容器自己不直连境外网络）。
   rsshub:

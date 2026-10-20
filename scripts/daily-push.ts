@@ -1,30 +1,50 @@
-// 每天定时把站点「精选」推送到微信（通过微信服务号中转）。
+// 每天定时把站点「精选」推到消息渠道。
 //
-// 微信个人号没有可用的推送接口，只能用第三方中转服务把消息发到你的微信：
-//   - serverchan  Server酱（sct.ftqq.com）：微信扫码登录后拿 SendKey，免费额度每天 5 条，够用
-//   - pushplus   PushPlus（pushplus.plus）：微信扫码登录后拿 token，免费额度更宽松
-// 两者都是“关注一个公众号，消息发到那个公众号”，点进去就是全文。
+// 渠道三选一（PUSH_PROVIDER）：
+//   feishu      飞书群「自定义机器人」webhook。一次配置，没有保活限制，推荐。
+//   pushplus    PushPlus（pushplus.plus）：微信扫码登录拿 token，发到公众号或 ClawBot 对话。
+//   serverchan  Server酱（sct.ftqq.com）：微信扫码登录拿 SendKey，发到公众号。
+// 微信个人号没有开放推送接口，只能经第三方中转；飞书则给每个群直接提供 webhook。
 //
 // 环境变量：
-//   WECHAT_PUSH_PROVIDER   serverchan | pushplus，默认 serverchan
-//   WECHAT_PUSH_TOKEN      上面拿到的 SendKey / token；为空时只打印不发送（便于试跑）
-//   WECHAT_DAILY_AT        发送时刻（北京时间，HH:MM），默认 10:30
-//   WECHAT_DAILY_TOP       推送多少条精选，默认 10
-//   WECHAT_DAILY_MIN_SCORE 只推评分不低于该值的条目，默认 0（全推）
-//   WECHAT_DAILY_RUN_ON_START  为 1 时启动立刻发一次（用于验证配置）
+//   PUSH_PROVIDER          feishu | pushplus | serverchan，默认 feishu
+//   PUSH_AT                发送时刻（北京时间，HH:MM），默认 10:30
+//   PUSH_TOP               推送多少条精选，默认 10
+//   PUSH_MIN_SCORE         只推评分不低于该值的条目，默认 0（全推）
+//   PUSH_RUN_ON_START      为 1 时启动立刻发一次
+//   PUSH_ONCE              为 1 时只发一次就退出（手动验收用）
+//   FEISHU_PUSH_WEBHOOK_URL  飞书群机器人地址
+//   FEISHU_PUSH_SECRET       机器人「签名校验」的密钥；用关键词或 IP 白名单时留空
+//   PUSH_TOKEN             pushplus token / Server酱 SendKey
+//   PUSH_CHANNEL           pushplus 渠道：留空=公众号，clawbot=微信 ClawBot
 //   API_BASE_URL           站点接口地址，Docker 里是 http://api:3001
-//   SITE_PUBLIC_URL        拼文章链接用的对外地址（手机能打开的域名；默认取 SITE_URL）
+//   SITE_PUBLIC_URL        拼文章链接用的对外地址（手机上能打开的域名；默认取 SITE_URL）
+//
+// 兼容旧名：WECHAT_PUSH_PROVIDER / WECHAT_PUSH_TOKEN / WECHAT_PUSH_CHANNEL / WECHAT_DAILY_*。
 
-const PROVIDER = (process.env.WECHAT_PUSH_PROVIDER || "serverchan").trim().toLowerCase();
+import { createHmac } from "node:crypto";
+
+/** 依次取第一个非空的环境变量，便于把旧的 WECHAT_* 名字继续当别名用。 */
+function env(...names: string[]): string {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+const PROVIDER = (env("PUSH_PROVIDER", "WECHAT_PUSH_PROVIDER") || "feishu").toLowerCase();
 /** pushplus 的发送渠道：留空走默认公众号；填 clawbot 则落到微信 ClawBot 对话里。 */
-const CHANNEL = (process.env.WECHAT_PUSH_CHANNEL || "").trim().toLowerCase();
-const TOKEN = (process.env.WECHAT_PUSH_TOKEN || "").trim();
-const AT = (process.env.WECHAT_DAILY_AT || "10:30").trim();
-const TOP = Math.max(1, Math.min(20, Number(process.env.WECHAT_DAILY_TOP) || 10));
-const MIN_SCORE = Number(process.env.WECHAT_DAILY_MIN_SCORE) || 0;
-const RUN_ON_START = (process.env.WECHAT_DAILY_RUN_ON_START || "").trim() === "1";
+const CHANNEL = env("PUSH_CHANNEL", "WECHAT_PUSH_CHANNEL").toLowerCase();
+const TOKEN = env("PUSH_TOKEN", "WECHAT_PUSH_TOKEN");
+const FEISHU_WEBHOOK = env("FEISHU_PUSH_WEBHOOK_URL");
+const FEISHU_SECRET = env("FEISHU_PUSH_SECRET");
+const AT = (env("PUSH_AT", "WECHAT_DAILY_AT") || "10:30");
+const TOP = Math.max(1, Math.min(20, Number(env("PUSH_TOP", "WECHAT_DAILY_TOP")) || 10));
+const MIN_SCORE = Number(env("PUSH_MIN_SCORE", "WECHAT_DAILY_MIN_SCORE")) || 0;
+const RUN_ON_START = env("PUSH_RUN_ON_START", "WECHAT_DAILY_RUN_ON_START") === "1";
 /** 为 1 时只发一次就退出，用于手动验证配置，不进常驻循环。 */
-const ONCE = (process.env.WECHAT_DAILY_ONCE || "").trim() === "1";
+const ONCE = env("PUSH_ONCE", "WECHAT_DAILY_ONCE") === "1";
 const API_BASE = (process.env.API_BASE_URL || "http://api:3001").replace(/\/+$/, "");
 const SITE = (process.env.SITE_PUBLIC_URL || process.env.SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
 
@@ -122,6 +142,40 @@ function renderPlain(items: Item[]): string {
   return lines.join("\n").trim();
 }
 
+/**
+ * 飞书消息卡片。每条精选一个 div，标题带链接，摘要按 lark_md 渲染，
+ * 来源与分类用灰色小字，最后一条 note 说明总量。
+ */
+function feishuCard(title: string, items: Item[]): unknown {
+  const elements: unknown[] = [];
+  items.forEach((it, i) => {
+    const link = `${SITE}/items/${it.id}`;
+    const brief = oneLine(it.summary || it.reason, 120);
+    const meta = [it.source?.name, it.category ? `#${it.category}` : ""].filter(Boolean).join(" · ");
+    const lines = [`**${i + 1}. [${oneLine(it.title, 80)}](${link})**`];
+    if (brief) lines.push(brief);
+    if (meta) lines.push(`<font color='grey'>${meta}</font>`);
+    elements.push({ tag: "div", text: { tag: "lark_md", content: lines.join("\n") } });
+    elements.push({ tag: "hr" });
+  });
+  elements.push({
+    tag: "note",
+    elements: [{ tag: "plain_text", content: `共 ${items.length} 条 · RobotHot 每日精选 · ${SITE}` }],
+  });
+  return {
+    config: { wide_screen_mode: true },
+    header: { template: "blue", title: { tag: "plain_text", content: title } },
+    elements,
+  };
+}
+
+/** 飞书「签名校验」：HMAC-SHA256，密钥是 `时间戳\nsecret`，对空串签名后 base64。 */
+function feishuSign(secret: string): { timestamp: string; sign: string } {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const sign = createHmac("sha256", `${timestamp}\n${secret}`).update("").digest("base64");
+  return { timestamp, sign };
+}
+
 /** 发一次请求并校验业务结果；两个服务失败时也返回 HTTP 200，真实结果在 body.code。 */
 async function sendRequest(url: string, body: unknown, okCode: number): Promise<string> {
   const res = await fetch(url, {
@@ -134,7 +188,9 @@ async function sendRequest(url: string, body: unknown, okCode: number): Promise<
   if (!res.ok) throw new Error(`推送失败 ${res.status}: ${text.slice(0, 200)}`);
   let code: unknown;
   try {
-    code = (JSON.parse(text) as { code?: unknown }).code;
+    const json = JSON.parse(text) as { code?: unknown; StatusCode?: unknown };
+    // 飞书新版返回 code，旧版返回 StatusCode；两者成功都是 0。
+    code = json.code ?? json.StatusCode;
   } catch {
     code = undefined;
   }
@@ -142,9 +198,28 @@ async function sendRequest(url: string, body: unknown, okCode: number): Promise<
   return text;
 }
 
-async function push(title: string, markdown: string, plain: string): Promise<void> {
+async function push(title: string, items: Item[]): Promise<void> {
+  const markdown = renderMarkdown(items);
+  const plain = renderPlain(items);
+
+  if (PROVIDER === "feishu") {
+    if (!FEISHU_WEBHOOK) {
+      log("未配置 FEISHU_PUSH_WEBHOOK_URL，只打印不发送");
+      console.log(`\n=== ${title} ===\n${markdown}`);
+      return;
+    }
+    const body = {
+      ...(FEISHU_SECRET ? feishuSign(FEISHU_SECRET) : {}),
+      msg_type: "interactive",
+      card: feishuCard(title, items),
+    };
+    const text = await sendRequest(FEISHU_WEBHOOK, body, 0);
+    log("飞书推送成功", text.slice(0, 160));
+    return;
+  }
+
   if (!TOKEN) {
-    log("未配置 WECHAT_PUSH_TOKEN，只打印不发送");
+    log("未配置 PUSH_TOKEN，只打印不发送");
     console.log(`\n=== ${title} ===\n${CHANNEL === "clawbot" ? plain : markdown}`);
     return;
   }
@@ -183,12 +258,13 @@ async function sendOnce(): Promise<void> {
     return;
   }
   const title = `RobotHot 精选 · ${beijingDateText()}（${items.length} 条）`;
-  await push(title, renderMarkdown(items), renderPlain(items));
+  await push(title, items);
   log(`已推送 ${items.length} 条`);
 }
 
 async function main(): Promise<void> {
-  log(`启动：provider=${PROVIDER} channel=${CHANNEL || "默认"} token=${TOKEN ? "已配置" : "未配置"} 每天 ${AT}（北京时间）`);
+  const ready = PROVIDER === "feishu" ? `webhook=${FEISHU_WEBHOOK ? "已配置" : "未配置"}` : `token=${TOKEN ? "已配置" : "未配置"} channel=${CHANNEL || "默认"}`;
+  log(`启动：provider=${PROVIDER} ${ready} 每天 ${AT}（北京时间）`);
   if (RUN_ON_START || ONCE) {
     await sendOnce();
     if (ONCE) return;

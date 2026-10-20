@@ -149,49 +149,64 @@ docker exec aihot-db-1 psql -U aihot -d postgres -c "drop database restore_test;
 
 备份目录本身没有异地副本，要防整机损坏，把 `robot-hot-backups/` 定期拷到移动硬盘或网盘（含密钥，注意加密）。
 
-## 八、每日精选推送到微信（scripts/wechat-daily.ts）
+## 八、每日精选推送到飞书 / 微信（scripts/daily-push.ts）
 
-微信个人号没有可用的推送接口，所以走第三方中转：消息发到你在那个服务里扫码登录的微信上。
+每天 10:30（北京时间）把首页「精选」推出去。三个渠道，`PUSH_PROVIDER` 切换：
 
-**选一个通道**（都在微信里扫码登录，30 秒）：
+| 渠道 | 需要什么 | 特点 |
+|---|---|---|
+| `feishu`（默认，推荐） | 飞书群机器人 webhook | 一次配置，无保活限制，卡片排版 |
+| `pushplus` | pushplus token | 微信：公众号或 ClawBot 对话 |
+| `serverchan` | Server酱 SendKey | 微信：公众号，每天 5 条 |
 
-| 通道 | 注册地址 | 拿到什么 | 免费额度 |
-|---|---|---|---|
-| Server酱 | https://sct.ftqq.com | `SENDKEY`（`SCT` 开头） | 每天 5 条 |
-| PushPlus | https://www.pushplus.plus | `token` | 每天 200 条 |
+### 飞书（推荐）
 
-**填进 `.env` 后重启服务**：
-
-```bash
-WECHAT_PUSH_PROVIDER=pushplus       # serverchan 或 pushplus
-WECHAT_PUSH_CHANNEL=clawbot         # 留空=默认公众号；clawbot=消息落进微信 ClawBot 对话
-WECHAT_PUSH_TOKEN=你的key
-WECHAT_DAILY_AT=10:30               # 北京时间
-WECHAT_DAILY_TOP=10                 # 推几条精选
-```
-
-**ClawBot 渠道的额外步骤与限制**（微信官方规则，任何接法都一样）：
-绑定入口在 pushplus「个人中心 → 渠道配置 → 微信ClawBot」，扫码后要**主动给 ClawBot 发一条消息**再点
-「我已发送」，状态变「已激活」才能收推送；之后**每发 10 条、每隔 24 小时**都需要再主动说一句话保活。
-txt 模板只认纯文本，脚本在 clawbot 渠道下自动改用纯文本排版（标题/摘要/来源/链接各一行）。
+1. 飞书里建一个群（自己一个人也行）→ 群设置 → **群机器人** → 添加机器人 → **自定义机器人**
+2. 安全设置三选一，推荐 **自定义关键词**，填 `RobotHot`（推送标题里一定带这个词）；
+   选「签名校验」则把密钥抄下来填进 `FEISHU_PUSH_SECRET`
+3. 复制 webhook 地址，填进 `.env`：
 
 ```bash
-docker compose up -d wechat-daily
-docker logs -f aihot-wechat-daily-1        # 看下一次发送时间
+PUSH_PROVIDER=feishu
+FEISHU_PUSH_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx
+# FEISHU_PUSH_SECRET=            # 只有选了「签名校验」才需要
+PUSH_AT=10:30                    # 北京时间
+PUSH_TOP=10                      # 推几条精选
 ```
-
-**手动试发一次**（不发图片、只发一条，不发就查日志里的报错）：
 
 ```bash
-docker compose run --rm --no-deps -e WECHAT_DAILY_ONCE=1 wechat-daily
+docker compose up -d daily-push
+docker logs -f aihot-daily-push-1          # 看下一次发送时间
+docker compose run --rm --no-deps -e PUSH_ONCE=1 daily-push   # 立刻发一次验收
 ```
 
-**逻辑**：读 `/api/site/timeline` 的「精选」流（`selected` 为真的条目，按评分排），取前 N 条，
-渲染成 Markdown（标题 + 一句话摘要 + 来源 + 分类），标题形如「RobotHot 精选 · 10月20日（10 条）」。
-容器常驻，自己算下一个 10:30，不依赖宿主机 cron，也不依赖 Agent。
+卡片按条排列：标题（带链接）、一句话摘要、来源与分类（灰色小字），末尾一条 note 写总量和站点地址。
+**飞书不需要每天保活**，配一次就能一直收。
 
-**注意链接**：正文里的文章链接由 `SITE_PUBLIC_URL` 拼出，默认 `http://localhost:3000`，
-手机上点不开。等站点有了公网域名，把它改成那个域名再重启容器：
+### 微信（备用）
+
+微信个人号没有推送接口，只能经第三方中转：
+
+| 通道 | 注册地址 | 拿到什么 |
+|---|---|---|
+| PushPlus | https://www.pushplus.plus | `token`（需实名；channel=clawbot 时发到 ClawBot 对话） |
+| Server酱 | https://sct.ftqq.com | `SENDKEY` |
+
+```bash
+PUSH_PROVIDER=pushplus
+PUSH_CHANNEL=clawbot        # 留空=公众号；clawbot=微信 ClawBot 对话
+PUSH_TOKEN=你的key
+```
+
+ClawBot 有官方保活限制：绑定后要主动发一条消息激活，之后**每 10 条、每 24 小时**要再主动说一句话。
+脚本做了兜底：ClawBot 拒发时自动改走默认公众号重发一次，避免消息静默丢失。
+
+### 共同说明
+
+- **取数**：读 `/api/site/timeline` 的精选流（`selected` 为真的条目，按评分排），取前 N 条。
+- **调度**：容器常驻，自己算下一个 10:30，不依赖宿主机 cron，也不依赖 Agent。
+- **链接**：正文链接由 `SITE_PUBLIC_URL` 拼出，默认 `http://localhost:3000`，手机上打不开。
+  有了公网域名后改成那个域名再重启容器：
 
 ```bash
 SITE_PUBLIC_URL=https://你的域名

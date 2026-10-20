@@ -82,19 +82,21 @@ services:
       api:
         condition: service_started
 
-  # 每天定时把站点「精选」推到微信（经 Server酱 / PushPlus 中转，见 scripts/wechat-daily.ts）。
-  # 没配 WECHAT_PUSH_TOKEN 时只打日志不发送，不会拖垮其他服务。
-  wechat-daily:
+  # 每天定时把站点「精选」推到消息渠道（飞书群机器人 / 微信中转，见 scripts/daily-push.ts）。
+  # 没配 webhook 或 token 时只打日志不发送，不会拖垮其他服务。
+  daily-push:
     <<: *backend
-    command: ["node", "scripts/wechat-daily.ts"]
+    command: ["node", "scripts/daily-push.ts"]
     environment:
       <<: *backend-env
-      WECHAT_PUSH_PROVIDER: ${WECHAT_PUSH_PROVIDER:-serverchan}
-      WECHAT_PUSH_CHANNEL: ${WECHAT_PUSH_CHANNEL:-}
-      WECHAT_PUSH_TOKEN: ${WECHAT_PUSH_TOKEN:-}
-      WECHAT_DAILY_AT: ${WECHAT_DAILY_AT:-10:30}
-      WECHAT_DAILY_TOP: ${WECHAT_DAILY_TOP:-10}
-      WECHAT_DAILY_MIN_SCORE: ${WECHAT_DAILY_MIN_SCORE:-0}
+      PUSH_PROVIDER: ${PUSH_PROVIDER:-feishu}
+      PUSH_AT: ${PUSH_AT:-10:30}
+      PUSH_TOP: ${PUSH_TOP:-10}
+      PUSH_MIN_SCORE: ${PUSH_MIN_SCORE:-0}
+      FEISHU_PUSH_WEBHOOK_URL: ${FEISHU_PUSH_WEBHOOK_URL:-}
+      FEISHU_PUSH_SECRET: ${FEISHU_PUSH_SECRET:-}
+      PUSH_TOKEN: ${PUSH_TOKEN:-}
+      PUSH_CHANNEL: ${PUSH_CHANNEL:-}
       SITE_PUBLIC_URL: ${SITE_PUBLIC_URL:-http://localhost:3000}
     depends_on:
       api:

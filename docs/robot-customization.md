@@ -226,6 +226,35 @@ LLM_EXTRA_JSON={"thinking":{"type":"disabled"}}             # 关掉思考模式
 改完重启后端（`docker compose up -d --force-recreate api worker`），新调用立刻生效；已分析的文章不会自动重跑
 （回执按 `模型 + 提示词版本 + 输入哈希` 记账，换模型就是一套新账）。
 
+### 关掉深度思考（一次配好，全站所有步骤都生效）
+
+框架在每个请求体里都会展开 `LLM_EXTRA_JSON`（`providers/llm.ts` 的 `...(spec.extra ?? {})`），
+所以**这一个变量就是全站总开关**——预筛、打分、结构化、理解、摘要、日报、翻译全都带上它，不用逐步配。
+字段名各家不一样，填错会被服务商以 400 拒掉：
+
+| 服务商 / 模型 | `LLM_EXTRA_JSON` 填什么 |
+|---|---|
+| 火山方舟（豆包 seed、DeepSeek、Kimi…） | `{"thinking":{"type":"disabled"}}` |
+| 阿里云百炼（Qwen 系列） | `{"enable_thinking":false}` |
+| 小米 MiMo | `{"thinking":{"type":"disabled"}}` |
+| OpenAI（gpt-5 等） | `{"reasoning_effort":"minimal"}` |
+| 智谱 GLM-5.3 | 关不掉，只能 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}` |
+| Claude / 非推理模型 | 不用填（默认就不思考） |
+
+配套两点：
+
+- `LLM_REASONING_TOKENS` **必须留空**。它是给"思考过程"额外留的输出额度，留着只会白花钱、白等时间。
+- 如果某一步在 `site/models.ts` 的预设里单独指定了模型，**预设自带的 `extra` 优先**（例如 `glm-5.3-flash` 预设就强制思考）；
+  想全站不思考，就不要给步骤绑这类预设。
+
+验证：请求成功时看 `usage.completion_tokens_details.reasoning_tokens`，是 `0` 就说明真的没思考：
+
+```bash
+docker exec aihot-db-1 psql -U aihot -d aihot -c \
+  "select model, usage->'completion_tokens_details'->>'reasoning_tokens' think_tokens, latency_ms
+   from receipt_attempts where status='received' order by id desc limit 10;"
+```
+
 ### 为什么从 `ark-code-latest` 换掉
 
 `ark-code-latest` 是推理型入口，实测同一道结构化题（3500 字文章 → JSON 摘要）要 8.1 秒；库里 1393 次历史调用均值 6.0 秒、最长 101 秒。

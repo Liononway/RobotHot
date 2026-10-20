@@ -211,3 +211,58 @@ ClawBot 有官方保活限制：绑定后要主动发一条消息激活，之后
 ```bash
 SITE_PUBLIC_URL=https://你的域名
 ```
+
+## 九、换模型（`.env` 里的 `LLM_*`）
+
+所有分析步骤（预筛、打分、结构化、理解、摘要、日报）默认共用一个 OpenAI 兼容模型，改 `.env` 三行就换：
+
+```bash
+LLM_BASE_URL=https://ark.cn-beijing.volces.com/api/plan/v3   # 火山方舟 Agent 套餐
+LLM_API_KEY=ark-...
+LLM_MODEL=deepseek-v4.1-flash
+LLM_EXTRA_JSON={"thinking":{"type":"disabled"}}             # 关掉思考模式，否则等于推理模型
+```
+
+改完重启后端（`docker compose up -d --force-recreate api worker`），新调用立刻生效；已分析的文章不会自动重跑
+（回执按 `模型 + 提示词版本 + 输入哈希` 记账，换模型就是一套新账）。
+
+### 为什么从 `ark-code-latest` 换掉
+
+`ark-code-latest` 是推理型入口，实测同一道结构化题（3500 字文章 → JSON 摘要）要 8.1 秒；库里 1393 次历史调用均值 6.0 秒、最长 101 秒。
+Agent 套餐里**只有部分模型可用**，其余会报 `UnsupportedModel`（“does not support the agent plan feature”），
+可用清单见火山文档 <https://www.volcengine.com/docs/82379/2366394>。同一道题的实测：
+
+| 模型 | 单次耗时 | 档位 / 上下文 | 备注 |
+|---|---|---|---|
+| `ark-code-latest` | 8.1s | 推理型 | 原配置，慢 |
+| `doubao-seed-2.0-mini` | 2.0s | 极速 / 256k | 最快，适合高并发的预筛 |
+| `deepseek-v4.1-flash` | 1.9s | 进阶 / 1M | **当前选择**，长文摘要更细 |
+| `doubao-seed-2.1-lite` | 3.6s | 标准 / 1M | |
+| `glm-5.3-flash` | — | 标准 / 1M | 不支持 `thinking.type=disabled`，要改成 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}` |
+
+一篇 3.9k 字文章走完整链路（预筛 → 结构化 → 打分 ×2 → 理解）的模型耗时：**6.6 秒**（原来约 27 秒），
+各步 0.8–2.6 秒，输出 JSON 正常解析，结论与旧模型一致（同一篇分数 68 → 78，摘要更详细）。
+
+### 想让某一步用更快的模型
+
+`site/models.ts` 的 `PRESETS` 里加一条（复用同一把 key），再在 `DEFAULTS` 里指定，或直接在后台「模型与评测」页选：
+
+```ts
+"ark-mini": { service: "llm", model: "doubao-seed-2.0-mini", baseUrlEnv: "LLM_BASE_URL",
+              apiKeyEnv: "LLM_API_KEY", extra: { thinking: { type: "disabled" } }, jsonMode: true },
+export const DEFAULTS: Record<string, string> = { prefilter: "ark-mini" };
+```
+
+加预设要重新构建镜像（`docker compose up -d --build api worker`）。
+
+### 验收方式
+
+```bash
+# 看最近各步骤的实际模型与耗时
+docker exec aihot-db-1 psql -U aihot -d aihot -c \
+  "select r.purpose, a.model, round(a.latency_ms/1000.0,1) s from receipt_attempts a
+   join receipts r on r.id=a.receipt_id where a.started_at > now()-interval '1 hour' order by a.id;"
+```
+
+`LLM_REASONING_TOKENS` 只对推理模型有意义（给思考过程留输出额度），换成非推理模型后留空即可。
+

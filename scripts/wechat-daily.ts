@@ -122,29 +122,8 @@ function renderPlain(items: Item[]): string {
   return lines.join("\n").trim();
 }
 
-async function push(title: string, markdown: string, plain: string): Promise<void> {
-  if (!TOKEN) {
-    log("未配置 WECHAT_PUSH_TOKEN，只打印不发送");
-    console.log(`\n=== ${title} ===\n${CHANNEL === "clawbot" ? plain : markdown}`);
-    return;
-  }
-  let url: string;
-  let body: unknown;
-  if (PROVIDER === "pushplus") {
-    url = "https://www.pushplus.plus/send";
-    const useTxt = CHANNEL === "clawbot";
-    body = {
-      token: TOKEN,
-      title,
-      // ClawBot 官方对富文本只显示前 50 字，官方文档建议用 txt 模板发纯文本。
-      content: useTxt ? plain : markdown,
-      template: useTxt ? "txt" : "markdown",
-      ...(CHANNEL ? { channel: CHANNEL } : {}),
-    };
-  } else {
-    url = `https://sctapi.ftqq.com/${TOKEN}.send`;
-    body = { title, desp: markdown };
-  }
+/** 发一次请求并校验业务结果；两个服务失败时也返回 HTTP 200，真实结果在 body.code。 */
+async function sendRequest(url: string, body: unknown, okCode: number): Promise<string> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -153,16 +132,47 @@ async function push(title: string, markdown: string, plain: string): Promise<voi
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`推送失败 ${res.status}: ${text.slice(0, 200)}`);
-  // 这两个服务失败时也返回 HTTP 200，真正的结果在 body 的 code 里：
-  // pushplus 成功是 200，Server酱成功是 0。不校验就会把失败当成功写进日志。
   let code: unknown;
   try {
     code = (JSON.parse(text) as { code?: unknown }).code;
   } catch {
     code = undefined;
   }
-  const ok = PROVIDER === "pushplus" ? Number(code) === 200 : Number(code) === 0;
-  if (code !== undefined && !ok) throw new Error(`推送被拒绝 code=${String(code)}: ${text.slice(0, 200)}`);
+  if (code !== undefined && Number(code) !== okCode) throw new Error(`推送被拒绝 code=${String(code)}: ${text.slice(0, 160)}`);
+  return text;
+}
+
+async function push(title: string, markdown: string, plain: string): Promise<void> {
+  if (!TOKEN) {
+    log("未配置 WECHAT_PUSH_TOKEN，只打印不发送");
+    console.log(`\n=== ${title} ===\n${CHANNEL === "clawbot" ? plain : markdown}`);
+    return;
+  }
+  if (PROVIDER === "pushplus") {
+    const url = "https://www.pushplus.plus/send";
+    const useTxt = CHANNEL === "clawbot";
+    const base = {
+      token: TOKEN,
+      title,
+      // ClawBot 官方对富文本只显示前 50 字，官方文档建议用 txt 模板发纯文本。
+      content: useTxt ? plain : markdown,
+      template: useTxt ? "txt" : "markdown",
+    };
+    try {
+      const text = await sendRequest(url, { ...base, ...(CHANNEL ? { channel: CHANNEL } : {}) }, 200);
+      log("推送成功", text.slice(0, 160));
+      return;
+    } catch (error) {
+      // ClawBot 有保活限制（每 24 小时/每 10 条要主动对话一次），过期就发不出去。
+      // 这时退回默认公众号，至少消息不会静默丢掉。
+      if (!CHANNEL) throw error;
+      log(`渠道 ${CHANNEL} 发送失败：${(error as Error).message.slice(0, 120)}；改走默认公众号重试`);
+      const text = await sendRequest(url, { ...base, content: markdown, template: "markdown" }, 200);
+      log("已改由公众号送达", text.slice(0, 160));
+      return;
+    }
+  }
+  const text = await sendRequest(`https://sctapi.ftqq.com/${TOKEN}.send`, { title, desp: markdown }, 0);
   log("推送成功", text.slice(0, 160));
 }
 

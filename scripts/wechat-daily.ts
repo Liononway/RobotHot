@@ -153,7 +153,17 @@ async function push(title: string, markdown: string, plain: string): Promise<voi
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`推送失败 ${res.status}: ${text.slice(0, 200)}`);
-  log("推送返回", text.slice(0, 200));
+  // 这两个服务失败时也返回 HTTP 200，真正的结果在 body 的 code 里：
+  // pushplus 成功是 200，Server酱成功是 0。不校验就会把失败当成功写进日志。
+  let code: unknown;
+  try {
+    code = (JSON.parse(text) as { code?: unknown }).code;
+  } catch {
+    code = undefined;
+  }
+  const ok = PROVIDER === "pushplus" ? Number(code) === 200 : Number(code) === 0;
+  if (code !== undefined && !ok) throw new Error(`推送被拒绝 code=${String(code)}: ${text.slice(0, 200)}`);
+  log("推送成功", text.slice(0, 160));
 }
 
 async function sendOnce(): Promise<void> {

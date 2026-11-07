@@ -427,6 +427,28 @@
       "syndicate_fulltext": false
     },
     {
+      "id": "mp-guanjie-mozu",
+      "name": "公众号：关节模组之家",
+      "kind": "rss",
+      "config": {
+        "feedUrl": "http://zlzchat:801/feedAtom/12fb0a63a25a14d15d7945202b6412d9",
+        "_aihot": {
+          "initialBackfillLimit": 10
+        },
+        "fetchPublicContent": true
+      },
+      "tier": "T2",
+      "owner_entity_id": null,
+      "participation_mode": "editorial",
+      "interval_minutes": 60,
+      "tags": [
+        "公众号",
+        "国内"
+      ],
+      "site_fulltext": true,
+      "syndicate_fulltext": false
+    },
+    {
       "id": "mp-tieweishi",
       "name": "公众号：铁卫士（抖音同号）",
       "kind": "rss",

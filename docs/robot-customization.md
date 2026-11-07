@@ -1,6 +1,6 @@
 # RobotHot：机器人资讯站的定制说明
 
-这份文件记录本仓库相对 AIHOT 模板改了什么、每条需求是怎么实现的、以及还有哪些信源需要你补配置。
+这份文件记录本仓库相对 AIHOT 模板改了什么、每条需求是怎么实现的、以及还有哪些信源需要你补配置。  
 框架本身的定制方法见 `docs/customize.md`。
 
 ## 一、站点身份（site/site.ts）
@@ -11,32 +11,32 @@
 
 ## 二、行业 KnowHow（industry/）
 
-| 文件 | 内容 |
-|---|---|
-| `taxonomy.ts` | 七个类别：整机、技术、落地、行业、论文、教程、观点；标签词表与厂商名录（特斯拉、宇树、智元、Figure 等 22 家） |
-| `topics.json` | 主题目录：按厂商、技术方向、内容类型三组 |
-| `selection.ts` | 入选门槛（T1 60 / T1_5 65 / T2 76） |
-| `prompts/prefilter.md` | 预筛：只放机器人/智能硬件相关内容；纯软件大模型、普通消费电子、RPA 之类的“机器人”一律挡掉 |
-| `prompts/selection-score.md` | 评分：强调量产/交付/订单等“阶段”证据，压住概念视频和重复演示 |
-| `prompts/content-understanding.md`、`structure.md` | 内容理解与结构化抽取（区分“演示 / 量产 / 交付 / 订单”） |
-| `prompts/rules-domain.md` | 机器人领域翻译规则（DoF、灵巧手、关节模组、VLA、sim-to-real……） |
+| 文件                                                | 内容                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------ |
+| `taxonomy.ts`                                     | 七个类别：整机、技术、落地、行业、论文、教程、观点；标签词表与厂商名录（特斯拉、宇树、智元、Figure 等 22 家） |
+| `topics.json`                                     | 主题目录：按厂商、技术方向、内容类型三组                                         |
+| `selection.ts`                                    | 入选门槛（T1 60 / T1_5 65 / T2 76）                                |
+| `prompts/prefilter.md`                            | 预筛：只放机器人/智能硬件相关内容；纯软件大模型、普通消费电子、RPA 之类的“机器人”一律挡掉             |
+| `prompts/selection-score.md`                      | 评分：强调量产/交付/订单等“阶段”证据，压住概念视频和重复演示                             |
+| `prompts/content-understanding.md`、`structure.md` | 内容理解与结构化抽取（区分“演示 / 量产 / 交付 / 订单”）                            |
+| `prompts/rules-domain.md`                         | 机器人领域翻译规则（DoF、灵巧手、关节模组、VLA、sim-to-real……）                    |
 
 ## 三、信源（industry/sources.json，首次启动导入，之后在后台“信源”里改）
 
 已启用（13 个）：
 
-| 信源 | 类型 | 覆盖 |
-|---|---|---|
-| IEEE Spectrum · Robotics | RSS | 海外权威媒体 |
-| MIT Technology Review · Robots | RSS | 海外媒体 |
-| TechCrunch · Robotics | RSS | 海外融资/产品 |
-| The Verge · Robotics | RSS | 海外媒体 |
-| Robohub | RSS | 海外社区 |
-| 量子位、雷峰网 | RSS | 国内媒体（融资、落地、技术） |
-| NVIDIA Blog | RSS | 官方一手（芯片、Isaac/GR00T） |
-| arXiv cs.RO | RSS | 机器人论文 |
-| GitHub 智能硬件与机器人开源周榜 | external | 由采集脚本推送 |
-| X：Elon Musk / NVIDIA / Fei-Fei Li | RSS（经 RSSHub） | 关键人物社媒，见第五节 |
+| 信源                                | 类型            | 覆盖                   |
+| --------------------------------- | ------------- | -------------------- |
+| IEEE Spectrum · Robotics          | RSS           | 海外权威媒体               |
+| MIT Technology Review · Robots    | RSS           | 海外媒体                 |
+| TechCrunch · Robotics             | RSS           | 海外融资/产品              |
+| The Verge · Robotics              | RSS           | 海外媒体                 |
+| Robohub                           | RSS           | 海外社区                 |
+| 量子位、雷峰网                           | RSS           | 国内媒体（融资、落地、技术）       |
+| NVIDIA Blog                       | RSS           | 官方一手（芯片、Isaac/GR00T） |
+| arXiv cs.RO                       | RSS           | 机器人论文                |
+| GitHub 智能硬件与机器人开源周榜               | external      | 由采集脚本推送              |
+| X：Elon Musk / NVIDIA / Fei-Fei Li | RSS（经 RSSHub） | 关键人物社媒，见第五节          |
 
 预置、未启用：
 
@@ -71,7 +71,7 @@ GitHub 搜索接口不支持“最近一周”这种相对日期，所以用一�
 > 原先部署的 wewe-rss 已停用（作者中转服务 `weread.111965.xyz` 自 2026 年 4 月起长期 502，扫码登录不可用），compose 里已注释保留。替代品 zlzchat（github.com/565800105/zlzchat）原理相同，作者中转服务目前在线。
 
 - 部署：`../zlzchat/docker-compose.yml`（Java + MySQL + Redis 三容器），应用文件在 `../zlzchat/app/`，数据库密码在 `../zlzchat/.secrets`。启动：`cd ../zlzchat && source .secrets && docker compose up -d`。
-- 管理界面：http://localhost:10082/admin ，账号 `system` 密码 `admin123`（首次登录后请改密码）。
+- 管理界面：<http://localhost:10082/admin> ，账号 `system` 密码 `admin123`（首次登录后请改密码）。
 - zlzchat 容器已接入 RobotHot 的 Docker 网络（`docker network connect aihot_default zlzchat`，重启 zlzchat 后需要重连一次），worker 用 `http://zlzchat:801/...` 抓取；`PRIVATE_FEED_HOSTS` 已加 `zlzchat`。
 - 用法：登录后台 → 读书账号管理 → 扫码登录微信读书（建议小号）→ 订阅源管理里按名称或文章链接添加公众号 → 开启 cron 定时拉取。
 - feed 地址：全部订阅 `http://zlzchat:801/atom`；单个号 `http://zlzchat:801/feedAtom/{feedId}`；分类 `http://zlzchat:801/mpClassificationAtom/{classificationId}`。开放 API 需在后台参数设置里配 `api.apikey`。
@@ -80,16 +80,16 @@ GitHub 搜索接口不支持“最近一周”这种相对日期，所以用一�
 
 **已接入的 8 个公众号**（kind = `rss`，不是 `mp_account`；后者走付费的极致了，没配 key 不会工作）：
 
-| 公众号 | 信源 id | feedId |
-|---|---|---|
-| 机器人前瞻 | mp-jiqirenqianzhan | 8732d3bc8ad031e31da43df609e626e3 |
-| AI机器人前瞻 | mp-ai-jiqirenqianzhan | 1adeb331c0413cfafb3f0a5ba68628f8 |
-| 具身智能一线 | mp-jushen-frontline | 802a6cea662ed1df8d0b371d4219c205 |
-| 我爱Robot | mp-iloverobot | c8470dd4f066ea74e362223b71d3a263 |
-| GEIA全球具身智能观察 | mp-geia | b0baac73a87f777e7cfb9399007526b4 |
-| 机器人开放社区 | mp-robot-open-community | fc0a0488e90f7b4e86bda71ec7ea4af3 |
-| Robo百科 | mp-robo-wiki | 1a1acd7124a195f0abb25ee372b74078 |
-| 铁卫士 | mp-tieweishi | 0c72410231612fdad0a6b69975b81a11 |
+| 公众号          | 信源 id                   | feedId                           |
+| ------------ | ----------------------- | -------------------------------- |
+| 机器人前瞻        | mp-jiqirenqianzhan      | 8732d3bc8ad031e31da43df609e626e3 |
+| AI机器人前瞻      | mp-ai-jiqirenqianzhan   | 1adeb331c0413cfafb3f0a5ba68628f8 |
+| 具身智能一线       | mp-jushen-frontline     | 802a6cea662ed1df8d0b371d4219c205 |
+| 我爱Robot      | mp-iloverobot           | c8470dd4f066ea74e362223b71d3a263 |
+| GEIA全球具身智能观察 | mp-geia                 | b0baac73a87f777e7cfb9399007526b4 |
+| 机器人开放社区      | mp-robot-open-community | fc0a0488e90f7b4e86bda71ec7ea4af3 |
+| Robo百科       | mp-robo-wiki            | 1a1acd7124a195f0abb25ee372b74078 |
+| 铁卫士          | mp-tieweishi            | 0c72410231612fdad0a6b69975b81a11 |
 
 - 每个源 `interval_minutes = 60`，`config.fetchPublicContent = true`：feed 里只有标题和链接，正文由后台按文章页抓取。
 - 新增公众号：先在 zlzchat 后台添加拿到 feedId，再到 `industry/sources.json` 加一条 `kind: "rss"` 的源（或后台“信源 → 新建 RSS”直接填 `http://zlzchat:801/feedAtom/<feedId>`），然后 `docker compose run --rm --no-deps -v "$PWD/industry:/app/industry:ro" setup node scripts/seed.ts`。
@@ -121,11 +121,11 @@ docker compose down            # 停止（数据保留）
 
 每次产出三份文件到 `../robot-hot-backups/`（与仓库同级，**不在仓库内**，避免密钥进 git）：
 
-| 文件 | 内容 | 恢复方式 |
-|---|---|---|
-| `aihot-<时间>.sql.gz` | 站点库：文章、信源、事实、报告、回执 | `gunzip -c … \| docker exec -i aihot-db-1 psql -U aihot -d aihot` |
+| 文件                    | 内容                                        | 恢复方式                                                                                                                            |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `aihot-<时间>.sql.gz`   | 站点库：文章、信源、事实、报告、回执                        | `gunzip -c … \| docker exec -i aihot-db-1 psql -U aihot -d aihot`                                                               |
 | `zlzchat-<时间>.sql.gz` | 公众号中转库 `gzhweb`：已添加的号与 feed_id（丢了要重新扫码登录） | `gunzip -c … \| docker exec -i zlz-mysql8 sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'`（dump 自带 `CREATE DATABASE`/`USE`，无需先建库） |
-| `secrets-<时间>.tar.gz` | `.env` + `zlzchat/.secrets`，权限 600 | `tar xzf … -C ..` |
+| `secrets-<时间>.tar.gz` | `.env` + `zlzchat/.secrets`，权限 600        | `tar xzf … -C ..`                                                                                                               |
 
 保留最近 14 天（`ROBOTHOT_BACKUP_KEEP_DAYS` 可改），日志在同目录 `backup.log`。
 
@@ -153,16 +153,16 @@ docker exec aihot-db-1 psql -U aihot -d postgres -c "drop database restore_test;
 
 每天 10:30（北京时间）把首页「精选」推出去。三个渠道，`PUSH_PROVIDER` 切换：
 
-| 渠道 | 需要什么 | 特点 |
-|---|---|---|
-| `feishu`（默认，推荐） | 飞书群机器人 webhook | 一次配置，无保活限制，卡片排版 |
-| `pushplus` | pushplus token | 微信：公众号或 ClawBot 对话 |
-| `serverchan` | Server酱 SendKey | 微信：公众号，每天 5 条 |
+| 渠道              | 需要什么            | 特点                 |
+| --------------- | --------------- | ------------------ |
+| `feishu`（默认，推荐） | 飞书群机器人 webhook  | 一次配置，无保活限制，卡片排版    |
+| `pushplus`      | pushplus token  | 微信：公众号或 ClawBot 对话 |
+| `serverchan`    | Server酱 SendKey | 微信：公众号，每天 5 条      |
 
 ### 飞书（推荐）
 
 1. 飞书里建一个群（自己一个人也行）→ 群设置 → **群机器人** → 添加机器人 → **自定义机器人**
-2. 安全设置三选一，推荐 **自定义关键词**，填 `RobotHot`（推送标题里一定带这个词）；
+2. 安全设置三选一，推荐 **自定义关键词**，填 `RobotHot`（推送标题里一定带这个词）；  
    选「签名校验」则把密钥抄下来填进 `FEISHU_PUSH_SECRET`
 3. 复制 webhook 地址，填进 `.env`：
 
@@ -180,17 +180,17 @@ docker logs -f aihot-daily-push-1          # 看下一次发送时间
 docker compose run --rm --no-deps -e PUSH_ONCE=1 daily-push   # 立刻发一次验收
 ```
 
-卡片按条排列：标题（带链接）、一句话摘要、来源与分类（灰色小字），末尾一条 note 写总量和站点地址。
+卡片按条排列：标题（带链接）、一句话摘要、来源与分类（灰色小字），末尾一条 note 写总量和站点地址。  
 **飞书不需要每天保活**，配一次就能一直收。
 
 ### 微信（备用）
 
 微信个人号没有推送接口，只能经第三方中转：
 
-| 通道 | 注册地址 | 拿到什么 |
-|---|---|---|
-| PushPlus | https://www.pushplus.plus | `token`（需实名；channel=clawbot 时发到 ClawBot 对话） |
-| Server酱 | https://sct.ftqq.com | `SENDKEY` |
+| 通道       | 注册地址                        | 拿到什么                                        |
+| -------- | --------------------------- | ------------------------------------------- |
+| PushPlus | <https://www.pushplus.plus> | `token`（需实名；channel=clawbot 时发到 ClawBot 对话） |
+| Server酱  | <https://sct.ftqq.com>      | `SENDKEY`                                   |
 
 ```bash
 PUSH_PROVIDER=pushplus
@@ -198,14 +198,14 @@ PUSH_CHANNEL=clawbot        # 留空=公众号；clawbot=微信 ClawBot 对话
 PUSH_TOKEN=你的key
 ```
 
-ClawBot 有官方保活限制：绑定后要主动发一条消息激活，之后**每 10 条、每 24 小时**要再主动说一句话。
+ClawBot 有官方保活限制：绑定后要主动发一条消息激活，之后**每 10 条、每 24 小时**要再主动说一句话。  
 脚本做了兜底：ClawBot 拒发时自动改走默认公众号重发一次，避免消息静默丢失。
 
 ### 共同说明
 
 - **取数**：读 `/api/site/timeline` 的精选流（`selected` 为真的条目，按评分排），取前 N 条。
 - **调度**：容器常驻，自己算下一个 10:30，不依赖宿主机 cron，也不依赖 Agent。
-- **链接**：正文链接由 `SITE_PUBLIC_URL` 拼出，默认 `http://localhost:3000`，手机上打不开。
+- **链接**：正文链接由 `SITE_PUBLIC_URL` 拼出，默认 `http://localhost:3000`，手机上打不开。  
   有了公网域名后改成那个域名再重启容器：
 
 ```bash
@@ -223,28 +223,28 @@ LLM_MODEL=deepseek-v4.1-flash
 LLM_EXTRA_JSON={"thinking":{"type":"disabled"}}             # 关掉思考模式，否则等于推理模型
 ```
 
-改完重启后端（`docker compose up -d --force-recreate api worker`），新调用立刻生效；已分析的文章不会自动重跑
+改完重启后端（`docker compose up -d --force-recreate api worker`），新调用立刻生效；已分析的文章不会自动重跑  
 （回执按 `模型 + 提示词版本 + 输入哈希` 记账，换模型就是一套新账）。
 
 ### 关掉深度思考（一次配好，全站所有步骤都生效）
 
-框架在每个请求体里都会展开 `LLM_EXTRA_JSON`（`providers/llm.ts` 的 `...(spec.extra ?? {})`），
-所以**这一个变量就是全站总开关**——预筛、打分、结构化、理解、摘要、日报、翻译全都带上它，不用逐步配。
+框架在每个请求体里都会展开 `LLM_EXTRA_JSON`（`providers/llm.ts` 的 `...(spec.extra ?? {})`），  
+所以**这一个变量就是全站总开关**——预筛、打分、结构化、理解、摘要、日报、翻译全都带上它，不用逐步配。  
 字段名各家不一样，填错会被服务商以 400 拒掉：
 
-| 服务商 / 模型 | `LLM_EXTRA_JSON` 填什么 |
-|---|---|
-| 火山方舟（豆包 seed、DeepSeek、Kimi…） | `{"thinking":{"type":"disabled"}}` |
-| 阿里云百炼（Qwen 系列） | `{"enable_thinking":false}` |
-| 小米 MiMo | `{"thinking":{"type":"disabled"}}` |
-| OpenAI（gpt-5 等） | `{"reasoning_effort":"minimal"}` |
-| 智谱 GLM-5.3 | 关不掉，只能 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}` |
-| Claude / 非推理模型 | 不用填（默认就不思考） |
+| 服务商 / 模型                     | `LLM_EXTRA_JSON` 填什么                                              |
+| ---------------------------- | ----------------------------------------------------------------- |
+| 火山方舟（豆包 seed、DeepSeek、Kimi…） | `{"thinking":{"type":"disabled"}}`                                |
+| 阿里云百炼（Qwen 系列）               | `{"enable_thinking":false}`                                       |
+| 小米 MiMo                      | `{"thinking":{"type":"disabled"}}`                                |
+| OpenAI（gpt-5 等）              | `{"reasoning_effort":"minimal"}`                                  |
+| 智谱 GLM-5.3                   | 关不掉，只能 `{"thinking":{"type":"enabled"},"reasoning_effort":"low"}` |
+| Claude / 非推理模型               | 不用填（默认就不思考）                                                       |
 
 配套两点：
 
 - `LLM_REASONING_TOKENS` **必须留空**。它是给"思考过程"额外留的输出额度，留着只会白花钱、白等时间。
-- 如果某一步在 `site/models.ts` 的预设里单独指定了模型，**预设自带的 `extra` 优先**（例如 `glm-5.3-flash` 预设就强制思考）；
+- 如果某一步在 `site/models.ts` 的预设里单独指定了模型，**预设自带的 `extra` 优先**（例如 `glm-5.3-flash` 预设就强制思考）；  
   想全站不思考，就不要给步骤绑这类预设。
 
 验证：请求成功时看 `usage.completion_tokens_details.reasoning_tokens`，是 `0` 就说明真的没思考：
@@ -254,6 +254,9 @@ docker exec aihot-db-1 psql -U aihot -d aihot -c \
   "select model, usage->'completion_tokens_details'->>'reasoning_tokens' think_tokens, latency_ms
    from receipt_attempts where status='received' order by id desc limit 10;"
 ```
+
+
+````
 
 ### 为什么从 `ark-code-latest` 换掉
 
@@ -280,7 +283,7 @@ Agent 套餐里**只有部分模型可用**，其余会报 `UnsupportedModel`（
 "ark-mini": { service: "llm", model: "doubao-seed-2.0-mini", baseUrlEnv: "LLM_BASE_URL",
               apiKeyEnv: "LLM_API_KEY", extra: { thinking: { type: "disabled" } }, jsonMode: true },
 export const DEFAULTS: Record<string, string> = { prefilter: "ark-mini" };
-```
+````
 
 加预设要重新构建镜像（`docker compose up -d --build api worker`）。
 
@@ -294,4 +297,3 @@ docker exec aihot-db-1 psql -U aihot -d aihot -c \
 ```
 
 `LLM_REASONING_TOKENS` 只对推理模型有意义（给思考过程留输出额度），换成非推理模型后留空即可。
-
